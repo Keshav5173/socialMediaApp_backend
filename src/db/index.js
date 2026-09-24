@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const connectDb =  async ()=>{
     try{
-        await mongoose.connect(`${process.env.DB_URL}/chatApp`);
+        await mongoose.connect(`${process.env.DB_URL}/socialMediaApp`);
         console.log("Sucessfully connected to Database");
     }
     catch(err){

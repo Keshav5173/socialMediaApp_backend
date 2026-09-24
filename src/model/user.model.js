@@ -27,9 +27,19 @@ const userSchema = mongoose.Schema({
     },
     fullName: {
         type: String,
-        index: true,
         trim: true,
         required: true,
+    },
+
+    state: {
+        type: String,
+        requried: true,
+        trim: true,
+    },
+    city: {
+        type: String,
+        required: true,
+        trim: true,
     },
     
     coverImage: {

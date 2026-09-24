@@ -6,6 +6,8 @@ import router from "./src/routes/index.js";
 
 const app = express();
 
+console.log("HELLO",process.env.CORS_ORIGIN);
+
 app.use(
     cors({
         origin: process.env.CORS_ORIGIN,

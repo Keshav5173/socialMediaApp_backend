@@ -3,14 +3,15 @@ import fs from "fs";
 
 
 
-cloudinary.config({ 
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
-    api_key: process.env.CLOUDINARY_API_KEY, 
-    api_secret: process.env.CLOUDINARY_SECRET_KEY 
-});
+
 
 const uploadOnCloudinary = async(localFilePath)=>{
     try{
+        cloudinary.config({ 
+            cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
+            api_key: process.env.CLOUDINARY_API_KEY, 
+            api_secret: process.env.CLOUDINARY_SECRET_KEY 
+        });
         if(!localFilePath){
             return null;
         }
@@ -21,6 +22,10 @@ const uploadOnCloudinary = async(localFilePath)=>{
         return uploadedData;
     }
     catch(err){
+        console.log("Cloudinary upload error:", err);
+
+
+
         fs.unlinkSync(localFilePath);
         return null;
     }

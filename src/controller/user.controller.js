@@ -22,22 +22,38 @@ const generateAccessAndRefreshToken = async (userId)=>{
 
 const registerUser = asyncHandler(async (req, res)=>{
     
-    const {fullName, username, email, password} = req.body;
+    const {fullName, username, email, state, city, password} = req.body;
+
 
     if(
-        [fullName, username, email, password].some((feild) => feild?.trim()=="")
+        [fullName, username, email, state, city, password].some((feild) => feild?.trim()=="")
     ){
         throw new ApiError(400, "All Feilds are required");
     }
-    const existedUser = await User.findOne({$or: [{email}, {username}]});
+    console.log("Email: ",email)
+    const existedUser = await User.findOne({email});
     if(existedUser){
-        throw new ApiError(409, "User already exists");
+        return res.status(409).json({
+            message: "User already exists Kindly Login",
+            sucess: false
+        })
+    }
+
+    const checkUsername = await User.findOne({username});
+
+    if(checkUsername){
+        return res.status(409).json({
+            message: "Username already used try another",
+            sucess: false
+        })
     }
 
     const user = await User.create({
         fullName, 
         username: username.toLowerCase(), 
         email,
+        state,
+        city,
         password
     })
 
@@ -113,6 +129,10 @@ const logoutUser = asyncHandler(async(req, res)=>{
         .clearCookie("refreshToken", options)
         .json(new ApiResponse(200, {}, "Logged Out sucessfully"))
 })
+
+// const viewProfile = asyncHandler(async(req, res)=>{
+//     const use
+// })
 
 
 const refreshAccessToken = asyncHandler(async (req, res)=>{
