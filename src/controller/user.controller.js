@@ -2,6 +2,7 @@ import asyncHandler from "../utlis/asyncHandler.js";
 import { ApiError } from "../utlis/apiError.js";
 import { User } from "../model/user.model.js";
 import { ApiResponse } from "../utlis/apiResponse.js";
+import jwt from "jsonwebtoken";
 
 
 const generateAccessAndRefreshToken = async (userId)=>{
@@ -130,9 +131,22 @@ const logoutUser = asyncHandler(async(req, res)=>{
         .json(new ApiResponse(200, {}, "Logged Out sucessfully"))
 })
 
-// const viewProfile = asyncHandler(async(req, res)=>{
-//     const use
-// })
+const viewProfile = asyncHandler(async(req, res)=>{
+    const userId = req.user._id;
+
+    const user = await User.findById(userId).select("-password -refreshToken");
+
+    if(!user){
+        res.status(404).json({
+            message: "User not found"
+        })
+    }
+    return res.status(200).json({
+        message: "User detailes fetched",
+        sucess: true,
+        data: user
+    })
+})
 
 
 const refreshAccessToken = asyncHandler(async (req, res)=>{
@@ -160,16 +174,17 @@ const refreshAccessToken = asyncHandler(async (req, res)=>{
             secure: true
         }
     
-        const {accessToken, newRefreshToken} = await generateAccessAndRefreshToken(user._id);
+        const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id);
     
         return res.status(200)
                 .cookie("accessToken", accessToken, options)
                 .cookie("refreshToken", newRefreshToken, options)
-                .json(new ApiResponse(200, {accessToken, refreshToken: newRefreshToken} , "Updated Access Token"));
+                .json(new ApiResponse(200, {accessToken, refreshToken} , "Updated Access Token"));
     } catch (error) {
         console.log("Error occured during refresh access token", error);
+        throw new ApiError(401, error || "Invalid refresh token");
     }
 })
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken };
+export { registerUser, loginUser, logoutUser, refreshAccessToken, viewProfile };
 

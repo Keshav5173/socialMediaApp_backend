@@ -4,6 +4,8 @@ import { ApiResponse } from "../utlis/apiResponse.js";
 import { uploadOnCloudinary } from "../utlis/cloudinary.js";
 import { Post } from "../model/post.model.js";
 import { Like } from "../model/like.model.js";
+import { Comment } from "../model/comment.model.js"
+import mongoose from "mongoose";
 
 
 const createPost = asyncHandler(async(req, res)=>{
@@ -38,30 +40,39 @@ const createPost = asyncHandler(async(req, res)=>{
     );
 })
 
-const likePost = asyncHandler(async(req, res)=>{
+const likePost = asyncHandler(async (req, res) => {
     const { postId } = req.body;
     const userId = req.user._id;
 
-    const alreadyLiked = await Like.findOne({postId, userId})
+    if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+        return res.status(400).json({ message: "A valid postId is required" });
+    }
 
-    if(alreadyLiked){
-        return res.status(201).json(
-            new ApiResponse(201, "Already Liked the post")
+    const alreadyLiked = await Like.exists({ postId, owner: userId });
+
+    if (alreadyLiked) {
+        return res.status(200).json(
+            new ApiResponse(200, { liked: true }, "Already liked the post")
         );
     }
 
-    const createdLike = await Like.create({
-        postId,
-        owner: userId
-    })
-
-    if(!createdLike){
-        throw new ApiError(500, "Failed to create a Like");
+    let createdLike;
+    try {
+        createdLike = await Like.create({ postId, owner: userId });
+    } catch (err) {
+        if (err.code === 11000) {
+            
+            return res.status(200).json(
+                new ApiResponse(200, { liked: true }, "Already liked the post")
+            );
+        }
+        throw err;
     }
+
     return res.status(200).json(
-        new ApiResponse(200, createdLike, "Sucessfully created a Like")
+        new ApiResponse(200, createdLike, "Successfully created a like")
     );
-})
+});
 
 const LikeComment = asyncHandler(async(req, res)=>{
     const { commentId } = req.body;
@@ -108,23 +119,20 @@ const createCommentOnPost = asyncHandler(async(req, res)=>{
     )
 })
 
-const checkAlreadyLikedPost = asyncHandler(async(req, res)=>{
-    const { postId } = req.body;
+const checkAlreadyLikedPost = asyncHandler(async (req, res) => {
+    const { postId } = req.query;
     const userId = req.user._id;
 
-    const LikedPost = await Like.findOne({postId, userId});
+    const likedPost = await Like.exists({ postId, userId });
 
-    if(!LikedPost){
-        return res.status(200).json({
-            sucess: false,
-            message: "Not Liked"
-        });
-    }
-    return res.status(200).json({
-        sucess: true,
-        message: "already Liked"
-    });
-})
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            { alreadyLikedPost: Boolean(likedPost) },
+            likedPost ? "Already liked" : "Not liked"
+        )
+    );
+});
 
 
 const checkAlreadyLikedComment = asyncHandler(async(req, res)=>{
@@ -148,9 +156,8 @@ const checkAlreadyLikedComment = asyncHandler(async(req, res)=>{
 
 const loadPost = asyncHandler(async (req, res) => {
     const { exclude, limit } = req.query;
+    const userId = req.user._id;
 
-    // Parse & validate excluded IDs — invalid ones are silently dropped,
-    // never thrown, so a bad ID can't crash the request
     const excludeIds = exclude
         ? exclude
               .split(",")
@@ -170,24 +177,125 @@ const loadPost = asyncHandler(async (req, res) => {
         },
         {
             $sample: { size: pageSize }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner"
+            }
+        },
+        {
+            $unwind: "$owner"
+        },
+        {
+            // Count likes without pulling every like document into memory —
+            // the pipeline inside $lookup does the counting on the DB side.
+            $lookup: {
+                from: "likes",
+                let: { postId: "$_id" },
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$postId", "$$postId"] } } },
+                    { $count: "count" }
+                ],
+                as: "likeInfo"
+            }
+        },
+        {
+            // Same idea, but scoped to the requesting user only — tells us
+            // whether *they* already liked this post.
+            $lookup: {
+                from: "likes",
+                let: { postId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: {
+                                $and: [
+                                    { $eq: ["$postId", "$$postId"] },
+                                    { $eq: ["$owner", userId] }
+                                ]
+                            }
+                        }
+                    },
+                    { $limit: 1 }
+                ],
+                as: "userLikeInfo"
+            }
+        },
+        {
+            $addFields: {
+                likeCount: {
+                    $ifNull: [{ $arrayElemAt: ["$likeInfo.count", 0] }, 0]
+                },
+                isLiked: {
+                    $gt: [{ $size: "$userLikeInfo" }, 0]
+                }
+            }
+        },
+        {
+            $project: {
+                postFile: 1,
+                caption: 1,
+                type: 1,
+                size: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                likeCount: 1,
+                isLiked: 1,
+                "owner._id": 1,
+                "owner.fullName": 1
+            }
+        }
+    ]);
+    console.log("Posts: ", posts);
+
+    return res.status(200).json({
+        message: "Successfully fetched posts",
+        data: posts,
+        success: true
+    });
+});
+
+const loadComment = asyncHandler(async (req, res) => {
+    const { postId } = req.query;
+
+    if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+        return res.status(400).json({ message: "A valid postId is required" });
+    }
+
+    const comments = await Comment.aggregate([
+        {
+            $match: { postId: new mongoose.Types.ObjectId(postId) }
+        },
+        {
+            $sort: { createdAt: 1 } // oldest first, so new comments land at the bottom
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner"
+            }
+        },
+        {
+            $unwind: "$owner"
+        },
+        {
+            $project: {
+                content: 1,
+                createdAt: 1,
+                "owner._id": 1,
+                "owner.username": 1,
+                "owner.fullName": 1
+            }
         }
     ]);
 
     return res.status(200).json(
-        new ApiResponse(200, posts, "Posts loaded successfully")
-    );
-});
-
-
-const loadComment = asyncHandler(async (req, res) => {
-    const { postId } = req.body;
-
-    const comments = await Comment.find({postId});
-
-    
-
-    return res.status(200).json(
-        new ApiResponse(200, comments, "Posts loaded successfully")
+        new ApiResponse(200, comments, "Comments loaded successfully")
     );
 });
 
