@@ -2,12 +2,13 @@ import mongoose from "mongoose";
 
 const connectDb =  async ()=>{
     try{
-        await mongoose.connect(`${process.env.DB_URL}/socialMediaApp`);
+        await mongoose.connect(process.env.DB_URL);
         console.log("Sucessfully connected to Database");
     }
     catch(err){
         console.log("Error Occured while connecting to Database", err);
     }
 }
+
 
 export default connectDb;
