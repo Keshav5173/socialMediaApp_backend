@@ -117,6 +117,9 @@ const mostLikedPosts = asyncHandler(async(req, res)=>{
                 }
             },
             {
+                $match: {"users.state": "Chhattisgarh"}
+            },
+            {
                 $lookup: {
                     from: "likes",
                     localField: "_id",
@@ -175,6 +178,9 @@ const mostCommentsPosts = asyncHandler(async(req, res)=>{
                 }
             },
             {
+                $match: {"users.state": "Chhattisgarh"}
+            },
+            {
                 $lookup: {
                     from: "comments",
                     localField: "_id",
@@ -223,6 +229,9 @@ const mostCommentsPosts = asyncHandler(async(req, res)=>{
 const mostActiveUser = asyncHandler(async(req, res)=>{
     try {
         const top3ActiveUser = await User.aggregate([
+            {
+                $match: {state: "Chhattisgarh"}
+            },
             {
                 $lookup: {
                     from: "posts",
@@ -319,6 +328,9 @@ const mostActiveContributer = asyncHandler(async(req, res)=>{
     try {
         const top3ActiveUser = await User.aggregate([
             {
+                $match: {state: "Chhattisgarh"}
+            },
+            {
                 $lookup: {
                     from: "likes",
                     localField: "_id",
@@ -395,10 +407,96 @@ const mostActiveContributer = asyncHandler(async(req, res)=>{
 })
 
 
+const getAllPostData = asyncHandler(async (req, res) => {
+    try {
+        const postsData = await User.aggregate([
+            {
+                $match: {
+                    state: "Chhattisgarh"
+                }
+            },
+            {
+                $lookup: {
+                    from: "posts",
+                    localField: "_id",
+                    foreignField: "owner",
+                    as: "posts"
+                }
+            },
+            {
+                $unwind: "$posts"
+            },
+            {
+                $lookup: {
+                    from: "likes",
+                    localField: "posts._id",
+                    foreignField: "postId",
+                    as: "likes"
+                }
+            },
+            {
+                $lookup: {
+                    from: "comments",
+                    localField: "posts._id",
+                    foreignField: "postId",
+                    as: "comments"
+                }
+            },
+            {
+                $addFields: {
+                    likeCount: {
+                        $size: "$likes"
+                    },
+                    commentCount: {
+                        $size: "$comments"
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+
+                    // User data
+                    userId: "$_id",
+                    email: 1,
+                    fullName: 1,
+                    username: 1,
+                    state: 1,
+                    city: 1,
+
+                    // Post data
+                    postId: "$posts._id",
+                    postFile: "$posts.postFile",
+                    caption: "$posts.caption",
+                    type: "$posts.type",
+
+                    // Counts
+                    likeCount: 1,
+                    commentCount: 1
+                }
+            }
+        ]);
+
+        return res.status(200).json({
+            message: "fetched data",
+            data: postsData
+        });
+
+    } catch (error) {
+        console.log("Error occurred while fetching all post: ", error);
+
+        return res.status(500).json({
+            message: "Internal Server Error"
+        });
+    }
+});
+
+
 export {
     getTop3Creaters,
     mostLikedPosts,
     mostCommentsPosts,
     mostActiveUser,
     mostActiveContributer,
+    getAllPostData
 }

@@ -1,4 +1,5 @@
 import {
+    getAllPostData,
     getTop3Creaters,
     mostActiveContributer,
     mostActiveUser,
@@ -18,6 +19,8 @@ router.get("/mostcommentpost", mostCommentsPosts);
 
 router.get("/most-active-user", mostActiveUser);
 
-router.get("/most-advive-contributer", mostActiveContributer);
+router.get("/most-active-contributer", mostActiveContributer);
+
+router.get("/getAllPostData", getAllPostData);
 
 export default router;
