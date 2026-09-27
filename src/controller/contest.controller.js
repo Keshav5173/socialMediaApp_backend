@@ -57,13 +57,13 @@ const getTop3Creaters = asyncHandler(async(req, res)=>{
                     score: {
                         $add: [
                             {
-                                $multiply: [{$ifNull: [$likeCount, 0] }, 2]
+                                $multiply: [{$ifNull: ["$likeCount", 0] }, 2]
                             },
                             {
-                                $multiply: [{$ifNull: [$postCount, 0] }, 1]
+                                $multiply: [{$ifNull: ["$postCount", 0] }, 1]
                             },
                             {
-                                $multiply: [{$ifNull: [$commentCount, 0] }, 3]
+                                $multiply: [{$ifNull: ["$commentCount", 0] }, 3]
                             }
                         ]
                     }
