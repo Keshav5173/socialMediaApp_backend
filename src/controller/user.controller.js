@@ -152,7 +152,7 @@ const viewProfile = asyncHandler(async(req, res)=>{
 const refreshAccessToken = asyncHandler(async (req, res)=>{
     try {
         const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
-    
+        console.log("Got refresh token", incomingRefreshToken);
         if(!incomingRefreshToken){
             throw new ApiError(401, "Unauthorised request");
         }
