@@ -11,6 +11,7 @@ const generateAccessAndRefreshToken = async (userId)=>{
         const accessToken = await user.generateAccessToken();
         const refreshToken = await user.generateRefreshToken();
 
+        
         user.refreshToken = refreshToken;
 
         await user.save({validateBeforeSave: false});
@@ -18,6 +19,7 @@ const generateAccessAndRefreshToken = async (userId)=>{
         return {accessToken, refreshToken};
     }catch(err){
         console.log("Error occured while creating access and refresh token");
+        throw new ApiError(500, "Error while generating access and refresh tokens");
     }
 }
 
@@ -178,11 +180,14 @@ const refreshAccessToken = asyncHandler(async (req, res)=>{
     
         return res.status(200)
                 .cookie("accessToken", accessToken, options)
-                .cookie("refreshToken", newRefreshToken, options)
+                .cookie("refreshToken", refreshToken, options)
                 .json(new ApiResponse(200, {accessToken, refreshToken} , "Updated Access Token"));
     } catch (error) {
         console.log("Error occured during refresh access token", error);
-        throw new ApiError(401, error || "Invalid refresh token");
+        return res.status(500).json({
+            message: "Invalid Refresh Token",
+            sucess: false
+        })
     }
 })
 

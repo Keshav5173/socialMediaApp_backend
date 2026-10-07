@@ -45,7 +45,7 @@ const userSchema = mongoose.Schema({
     coverImage: {
         type: String,
     },
-    refereshToken: {
+    refreshToken: {
         type: String,
     },
 
