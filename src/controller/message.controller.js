@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import asyncHandler from "../utlis/asyncHandler.js";
 import { Friend } from "../model/friend.model.js";
 import { Message } from "../model/message.model.js";
@@ -83,6 +82,15 @@ const fetchMessages = asyncHandler(async (req, res)=>{
     const userId = req.user._id;
     const { friendId } = req.params;
 
+    console.log("friendId", friendId, "userId", userId);
+
+    if(!friendId){
+        return res.status(400).json({
+            success: false,
+            message: "friendId is required"
+        })
+    }
+
     const messages = await Message.find({
         $or: [
             { senderId: userId, receiverId: friendId },
@@ -99,6 +107,7 @@ const fetchMessages = asyncHandler(async (req, res)=>{
         text: m.content,
         time: m.createdAt,
     }));
+    console.log("data fetched", messages);
 
     return res.status(200).json({
         sucess: true,
@@ -111,12 +120,15 @@ const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const searchUsersByUsername = asyncHandler(async (req, res) => {
     const userId = req.user._id;
+    const meraUsername = req.user.username;
     const { username } = req.query;
 
     // nothing typed -> empty list
     if (!username || !username.trim()) {
         return res.status(200).json({ success: true, message: "No query", data: [] });
     }
+    // console.log("Searching...", username);
+    console.log("my userId and username", userId, meraUsername);
 
     const users = await User.find({
         username: { $regex: escapeRegex(username.trim()), $options: "i" },
@@ -132,6 +144,8 @@ const searchUsersByUsername = asyncHandler(async (req, res) => {
         name: u.fullName,
         username: u.username,
     }));
+
+    console.log("data", data);
 
     return res.status(200).json({
         success: true,
@@ -180,27 +194,48 @@ const addFriend = asyncHandler(async (req, res)=>{
 })
 
 
-const sendMessage = asyncHandler(async (req, res)=>{
+const sendMessage = asyncHandler(async (req, res) => {
     const userId = req.user._id;
     const { friendId, content } = req.body;
 
-    if(!friendId || !content){
-        return res.status.json({
-            sucess: false,
-            message: "FriendId and content are required",
-        })
+    if (!friendId || !content?.trim()) {
+        return res.status(400).json({
+            success: false,
+            message: "A valid friendId and content are required",
+        });
     }
 
-    await Message.create({
+    
+    const isFriend = await Friend.exists({
+        $or: [
+            { userId, friendId },
+            { userId: friendId, friendId: userId },
+        ],
+    });
+    if (!isFriend) {
+        return res.status(403).json({ success: false, message: "You are not friends with this user" });
+    }
+
+    const message = await Message.create({
         senderId: userId,
         receiverId: friendId,
-        content
-    })
+        content: content.trim(),
+    });
+
+    // deliver to the friend live through the socket
+    const io = req.app.get("io");
+    io.to(friendId.toString()).emit("receiveMessage", {
+        id: message._id,
+        friendId: userId, // for the receiver, the "friend" is the sender
+        text: message.content,
+        time: message.createdAt,
+    });
 
     return res.status(201).json({
-        sucess: true,
+        success: true,
         message: "Message sent successfully",
-    })
+        data: { id: message._id, text: message.content, time: message.createdAt },
+    });
+});
 
-})
 export { fetchFriends, fetchMessages, searchUsersByUsername, addFriend, sendMessage };
