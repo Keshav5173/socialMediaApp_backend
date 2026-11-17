@@ -2,6 +2,7 @@ import asyncHandler from "../utlis/asyncHandler.js";
 import { Friend } from "../model/friend.model.js";
 import { Message } from "../model/message.model.js";
 import { User } from "../model/user.model.js";
+import { uploadOnCloudinary } from "../utlis/cloudinary.js";
 
 const fetchFriends = asyncHandler(async (req, res) => {
     
@@ -105,6 +106,8 @@ const fetchMessages = asyncHandler(async (req, res)=>{
         id: m._id,
         from: m.senderId.toString() === userId.toString() ? "me" : "friend",
         text: m.content,
+        type: m.type,
+        file: m.file,
         time: m.createdAt,
     }));
     console.log("data fetched", messages);
@@ -238,4 +241,40 @@ const sendMessage = asyncHandler(async (req, res) => {
     });
 });
 
-export { fetchFriends, fetchMessages, searchUsersByUsername, addFriend, sendMessage };
+
+const uploadFile = asyncHandler( async (req, res)=>{
+    const files = req.files;
+
+    if (!files) {
+        return res.status(400).json({
+            success: false,
+            message: "No file provided",
+        });
+    }
+
+    const filePath = files.file[0].path;
+
+    const fileURL = await uploadOnCloudinary(filePath);
+
+    if(!fileURL?.secure_url){
+        return res.status(500).json({
+            success: false,
+            message: "Failed to Upload file please try again"
+        })
+    }
+
+    return res.status(201).json({
+        success: true,
+        message: "successfully uploaded file",
+        data: fileURL.secure_url
+    })
+})
+
+export { 
+    fetchFriends, 
+    fetchMessages, 
+    searchUsersByUsername, 
+    addFriend, 
+    sendMessage,  
+    uploadFile
+};
