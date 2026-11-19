@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { Friend } from "./src/model/friend.model.js";
 import { Message } from "./src/model/message.model.js";
+import { handleVideoCallEvent } from "./src/services/videoCall.services.js";
 
 const MESSAGE_TYPES = ["text", "image", "video", "document"];
 
@@ -20,6 +21,12 @@ export const initSocket = (httpServer) => {
         },
     });
 
+    // returns an array of online user ids 
+    const getOnlineUsers = async () => {
+        const sockets = await io.fetchSockets();
+        return [...new Set(sockets.map((s) => s.userId))];
+    };
+
     io.use((socket, next) => {
         try {
             const cookies = parse(socket.handshake.headers.cookie || "");
@@ -31,8 +38,16 @@ export const initSocket = (httpServer) => {
         }
     });
 
-    io.on("connection", (socket) => {
+    io.on("connection", async (socket) => {
         socket.join(socket.userId);
+
+        // tell everyone the updated online list
+        io.emit("onlineUsers", await getOnlineUsers());
+
+        // client can ask for the online list anytime
+        socket.on("getOnlineUsers", async (ack) => {
+            ack?.(await getOnlineUsers());
+        });
 
         // payload: { friendId, type: 'text'|'image'|'video'|'document', text, file?: { url, name, size, mimeType } }
         socket.on("sendMessage", async ({ friendId, type = "text", text, file } = {}, ack) => {
@@ -100,8 +115,14 @@ export const initSocket = (httpServer) => {
             }
         });
 
-        socket.on("disconnect", () => {
+        // video call events 
+        handleVideoCallEvent(socket, io);
+
+        socket.on("disconnect", async () => {
             console.log("socket disconnected", socket.id);
+
+            // tell everyone the updated online list
+            io.emit("onlineUsers", await getOnlineUsers());
         });
     });
 
